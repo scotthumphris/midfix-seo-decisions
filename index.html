@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>MIDFIX SEO decisions</title>
+<style>
+:root{--ink:#1d2733;--muted:#5d6b7a;--line:#dfe4ea;--bg:#f4f6f8;--card:#fff;--brand:#0f3c68;--ok:#1f7a3f;--okbg:#e7f4ec;--no:#a3262a;--nobg:#fbeaea;--info:#7a5a00;--infobg:#fff6dc}
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--ink);background:var(--bg)}
+header{background:var(--brand);color:#fff;padding:18px 16px}
+header .wrap{max-width:880px;margin:0 auto}
+header h1{margin:0;font-size:22px;font-weight:650}
+header p{margin:4px 0 0;opacity:.85;font-size:14px}
+main{max-width:880px;margin:0 auto;padding:16px}
+.summary{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 16px}
+.pill{background:#fff;border:1px solid var(--line);border-radius:999px;padding:4px 12px;font-size:14px}
+h2.group{font-size:15px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:26px 0 10px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin:0 0 12px}
+.card.st-approve{border-left:5px solid var(--ok)}
+.card.st-deny{border-left:5px solid var(--no)}
+.card.st-comment{border-left:5px solid #c79100}
+.card.st-pick{border-left:5px solid var(--brand)}
+.top{display:flex;gap:10px;align-items:flex-start}
+.ref{font-weight:700;color:var(--brand);min-width:38px}
+.title{font-weight:650;font-size:17px;margin:0}
+.does{color:var(--muted);margin:6px 0 0;font-size:15px}
+.question{margin:8px 0 0;font-size:15px;background:var(--infobg);color:var(--info);padding:8px 10px;border-radius:6px}
+.links{margin:8px 0 0;padding:0;list-style:none;font-size:15px}
+.links li{margin:2px 0}
+a{color:#0b5cad}
+details{margin:10px 0 0;border:1px solid var(--line);border-radius:8px;background:#fafbfc}
+details summary{cursor:pointer;padding:8px 12px;font-weight:600;font-size:15px}
+.draft{padding:4px 14px 12px;font-size:15px;max-height:70vh;overflow:auto}
+.draft table{border-collapse:collapse;width:100%;font-size:14px;display:block;overflow-x:auto}
+.draft th,.draft td{border:1px solid var(--line);padding:6px;vertical-align:top;text-align:left}
+.draft h1{font-size:19px}.draft h2{font-size:17px}.draft h3{font-size:16px}
+.controls{margin:14px 0 0;display:flex;flex-direction:column;gap:10px}
+.choices{display:flex;gap:8px;flex-wrap:wrap}
+.choice{border:1.5px solid var(--line);background:#fff;border-radius:8px;padding:9px 18px;font-size:15px;font-weight:600;cursor:pointer;color:var(--ink)}
+.choice:hover{border-color:var(--brand)}
+.choice.sel.approve{background:var(--okbg);border-color:var(--ok);color:var(--ok)}
+.choice.sel.deny{background:var(--nobg);border-color:var(--no);color:var(--no)}
+.choice.sel.pick{background:#e6eef7;border-color:var(--brand);color:var(--brand)}
+textarea{width:100%;min-height:64px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:inherit;font-size:15px;resize:vertical}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.save{background:var(--brand);color:#fff;border:0;border-radius:8px;padding:10px 20px;font-size:15px;font-weight:600;cursor:pointer}
+.save:disabled{opacity:.45;cursor:default}
+.clear{background:none;border:0;color:var(--muted);text-decoration:underline;cursor:pointer;font-size:14px}
+.status{font-size:14px;color:var(--muted)}
+.status.saved{color:var(--ok);font-weight:600}
+.status.saved.deny{color:var(--no)}
+.status.err{color:var(--no);font-weight:600}
+.note{margin:10px 0 0;background:#f1f5fa;border:1px solid #d6e2ef;border-radius:8px;padding:8px 12px;font-size:15px}
+.note b{color:var(--brand)}
+.note ul{margin:4px 0 0;padding-left:20px}
+.actioned{font-size:14px;color:var(--brand);margin-top:4px}
+.notice{background:#fff;border:1px solid var(--line);border-radius:10px;padding:20px;text-align:center}
+footer{max-width:880px;margin:0 auto;padding:8px 16px 40px;color:var(--muted);font-size:13px}
+@media (max-width:560px){header h1{font-size:19px}.card{padding:14px}.choice{flex:1 1 40%}.save{flex:1}}
+</style>
+</head>
+<body>
+<header><div class="wrap"><h1>MIDFIX SEO decisions</h1><p>Approve, deny or comment on each item, then press Save. Nothing goes live until Rory acts on a saved approval.</p></div></header>
+<main>
+  <div id="summary" class="summary"></div>
+  <div id="app"><div class="notice">Loading decisions…</div></div>
+</main>
+<footer>Your choices are saved as soon as you press Save and you can change them at any time. Times are UK time.</footer>
+<script>
+(function(){
+  var API = "https://wdnjkfybavqdfrqsbfts.supabase.co/functions/v1/seo-decisions";
+  if (API.indexOf("__") === 0) API = location.origin + location.pathname.replace(/\/(page)?$/, "");
+  var params = new URLSearchParams(location.hash.slice(1) || location.search.slice(1));
+  var TOKEN = params.get("t") || "";
+  var app = document.getElementById("app");
+  var items = [];
+
+  function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}
+  function ukTime(iso){
+    if(!iso) return "";
+    var d = new Date(iso), now = new Date();
+    var t = d.toLocaleTimeString("en-GB",{timeZone:"Europe/London",hour:"2-digit",minute:"2-digit"});
+    var day = d.toLocaleDateString("en-GB",{timeZone:"Europe/London",day:"numeric",month:"short"});
+    var today = now.toLocaleDateString("en-GB",{timeZone:"Europe/London",day:"numeric",month:"short"});
+    return day === today ? t : day + " " + t;
+  }
+  function cls(choice){var c=choice.toLowerCase(); return c==="approve"?"approve":c==="deny"?"deny":"pick";}
+  function verb(choice){var c=choice.toLowerCase(); return c==="approve"?"Approved":c==="deny"?"Denied":"Chose "+choice;}
+  function api(path, opts){
+    opts = opts || {};
+    opts.headers = Object.assign({"x-decisions-token": TOKEN}, opts.headers||{});
+    return fetch(API + path, opts).then(function(r){
+      return r.json().catch(function(){return {};}).then(function(j){ if(!r.ok) throw new Error(j.error||("HTTP "+r.status)); return j; });
+    });
+  }
+
+  function statusText(it){
+    if(!it.saved_at) return {t:"Not decided yet", c:""};
+    var s = it.decision ? verb(it.decision) : "Comment saved";
+    return {t: s + " " + ukTime(it.saved_at), c: "saved" + (it.decision && it.decision.toLowerCase()==="deny" ? " deny" : "")};
+  }
+
+  function render(){
+    var groups = {}, order = [];
+    items.forEach(function(it){ if(!groups[it.grp]){groups[it.grp]=[];order.push(it.grp);} groups[it.grp].push(it); });
+    var html = "";
+    order.forEach(function(g){
+      html += '<h2 class="group">'+esc(g)+'</h2>';
+      groups[g].forEach(function(it){ html += cardHtml(it); });
+    });
+    app.innerHTML = html || '<div class="notice">No open decisions.</div>';
+    items.forEach(bind);
+    summary();
+  }
+
+  function cardHtml(it){
+    var st = statusText(it);
+    var state = it.decision ? cls(it.decision) : (it.comment ? "comment" : "");
+    var h = '<div class="card '+(state?'st-'+state:'')+'" id="card-'+esc(it.ref)+'">';
+    h += '<div class="top"><div class="ref">'+esc(it.ref)+'</div><div style="flex:1">';
+    h += '<p class="title">'+esc(it.title)+'</p>';
+    if(it.approve_does) h += '<p class="does">'+esc(it.approve_does)+'</p>';
+    if(it.question) h += '<p class="question">'+esc(it.question)+'</p>';
+    if(it.links && it.links.length){
+      h += '<ul class="links">';
+      it.links.forEach(function(l){ h += '<li><a href="'+esc(l.url)+'" target="_blank" rel="noopener noreferrer">'+esc(l.label)+'</a></li>'; });
+      h += '</ul>';
+    }
+    if(it.draft_html) h += '<details><summary>Read the draft copy</summary><div class="draft">'+it.draft_html+'</div></details>';
+    if(it.kind==="note"){ h += '<div class="note">'+(it.note_html||'')+'</div></div></div></div>'; return h; }
+    if(it.note_html) h += '<div class="note"><b>Product team note</b>'+it.note_html+'</div>';
+    h += '<div class="controls"><div class="choices">';
+    (it.choices||[]).forEach(function(c){
+      h += '<button type="button" class="choice '+cls(c)+(it.decision===c?' sel':'')+'" data-choice="'+esc(c)+'">'+esc(c)+'</button>';
+    });
+    h += '</div><textarea placeholder="Optional comment" aria-label="Comment on '+esc(it.ref)+'">'+esc(it.comment||"")+'</textarea>';
+    h += '<div class="row"><button type="button" class="save" disabled>Save</button><button type="button" class="clear">Clear choice</button><span class="status '+st.c+'">'+esc(st.t)+'</span></div>';
+    if(it.actioned_at) h += '<div class="actioned">Actioned by Rory '+esc(ukTime(it.actioned_at))+(it.actioned_note?': '+esc(it.actioned_note):'')+'</div>';
+    h += '</div></div></div></div>';
+    return h;
+  }
+
+  function bind(it){
+    if(it.kind==="note") return;
+    var card = document.getElementById("card-"+it.ref);
+    var pending = {decision: it.decision || null};
+    var btns = card.querySelectorAll(".choice"), ta = card.querySelector("textarea");
+    var save = card.querySelector(".save"), clear = card.querySelector(".clear"), status = card.querySelector(".status");
+    function dirty(){
+      var changed = (pending.decision||null) !== (it.decision||null) || (ta.value||"") !== (it.comment||"");
+      var valid = pending.decision || ta.value.trim();
+      save.disabled = !(changed && valid);
+      if(changed){ status.className = "status"; status.textContent = "Unsaved changes"; }
+      else { var st = statusText(it); status.className = "status "+st.c; status.textContent = st.t; }
+    }
+    btns.forEach(function(b){
+      b.addEventListener("click", function(){
+        var c = b.getAttribute("data-choice");
+        pending.decision = pending.decision === c ? null : c;
+        btns.forEach(function(x){ x.classList.toggle("sel", x.getAttribute("data-choice") === pending.decision); });
+        dirty();
+      });
+    });
+    clear.addEventListener("click", function(){
+      pending.decision = null;
+      btns.forEach(function(x){ x.classList.remove("sel"); });
+      dirty();
+    });
+    ta.addEventListener("input", dirty);
+    save.addEventListener("click", function(){
+      save.disabled = true; status.className = "status"; status.textContent = "Saving…";
+      api("/api/save", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ref: it.ref, decision: pending.decision, comment: ta.value})})
+        .then(function(j){
+          it.decision = j.saved.decision; it.comment = j.saved.comment; it.saved_at = j.saved.saved_at; it.actioned_at = null; it.actioned_note = null;
+          var old = card; old.outerHTML = cardHtml(it); bind(it); summary();
+        })
+        .catch(function(e){ status.className = "status err"; status.textContent = "Not saved: " + e.message + ". Please try again."; save.disabled = false; });
+    });
+  }
+
+  function summary(){
+    var a=0,d=0,o=0,n=0;
+    items.forEach(function(it){ if(it.kind==="note") return; if(!it.saved_at) n++; else if(!it.decision) o++; else if(it.decision.toLowerCase()==="deny") d++; else a++; });
+    document.getElementById("summary").innerHTML =
+      '<span class="pill">'+n+' to decide</span><span class="pill">'+a+' approved or chosen</span><span class="pill">'+d+' denied</span><span class="pill">'+o+' comment only</span>';
+  }
+
+  if(!TOKEN){ app.innerHTML = '<div class="notice">This link is missing its access key. Please use the full link Rory sent you.</div>'; return; }
+  api("/api/items").then(function(j){ items = j.items || []; render(); })
+    .catch(function(e){ app.innerHTML = '<div class="notice">Could not load decisions ('+esc(e.message)+'). Please check you used the full link.</div>'; });
+})();
+</script>
+</body>
+</html>
