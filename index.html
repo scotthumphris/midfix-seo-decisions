@@ -58,6 +58,11 @@ textarea{width:100%;min-height:64px;border:1px solid var(--line);border-radius:8
 .note ul{margin:4px 0 0;padding-left:20px}
 .actioned{font-size:14px;color:var(--brand);margin-top:4px}
 .notice{background:#fff;border:1px solid var(--line);border-radius:10px;padding:20px;text-align:center}
+.approved-box{margin:28px 0 0;background:#fff}
+.approved-box>summary{font-size:15px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:10px 14px}
+.approved-box .inner{padding:4px 12px 12px}
+.approved-box .card{margin:10px 0 0}
+.flash{background:var(--okbg);color:var(--ok);border:1px solid #bfe3cb;border-radius:8px;padding:8px 12px;margin:0 0 12px;font-size:15px;font-weight:600}
 footer{max-width:880px;margin:0 auto;padding:8px 16px 40px;color:var(--muted);font-size:13px}
 @media (max-width:560px){header h1{font-size:19px}.card{padding:14px}.choice{flex:1 1 40%}.save{flex:1}}
 </style>
@@ -66,6 +71,7 @@ footer{max-width:880px;margin:0 auto;padding:8px 16px 40px;color:var(--muted);fo
 <header><div class="wrap"><h1>MIDFIX SEO decisions</h1><p>Approve, deny or comment on each item, then press Save. Nothing goes live until Rory acts on a saved approval.</p></div></header>
 <main>
   <div id="summary" class="summary"></div>
+  <div id="flash"></div>
   <div id="app"><div class="notice">Loading decisions…</div></div>
 </main>
 <footer>Your choices are saved as soon as you press Save and you can change them at any time. Times are UK time.</footer>
@@ -77,6 +83,8 @@ footer{max-width:880px;margin:0 auto;padding:8px 16px 40px;color:var(--muted);fo
   var TOKEN = params.get("t") || "";
   var app = document.getElementById("app");
   var items = [];
+  var unsaved = {};
+  var approvedOpen = false;
 
   function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}
   function ukTime(iso){
@@ -103,17 +111,40 @@ footer{max-width:880px;margin:0 auto;padding:8px 16px 40px;color:var(--muted);fo
     return {t: s + " " + ukTime(it.saved_at), c: "saved" + (it.decision && it.decision.toLowerCase()==="deny" ? " deny" : "")};
   }
 
+  function isApproved(it){
+    // Any saved Approve (or a saved pick on a choice item) leaves the main list, actioned or not.
+    if(it.kind==="note" || !it.decision) return false;
+    return it.decision.toLowerCase() !== "deny";
+  }
+
   function render(){
-    var groups = {}, order = [];
-    items.forEach(function(it){ if(!groups[it.grp]){groups[it.grp]=[];order.push(it.grp);} groups[it.grp].push(it); });
+    var groups = {}, order = [], done = [];
+    items.forEach(function(it){
+      if(isApproved(it)){ done.push(it); return; }
+      if(!groups[it.grp]){groups[it.grp]=[];order.push(it.grp);} groups[it.grp].push(it);
+    });
     var html = "";
     order.forEach(function(g){
       html += '<h2 class="group">'+esc(g)+'</h2>';
       groups[g].forEach(function(it){ html += cardHtml(it); });
     });
-    app.innerHTML = html || '<div class="notice">No open decisions.</div>';
+    if(!html) html = '<div class="notice">No open decisions.</div>';
+    if(done.length){
+      done.sort(function(a,b){ return (b.saved_at||"").localeCompare(a.saved_at||""); });
+      html += '<details class="approved-box" id="approved-box"'+(approvedOpen?' open':'')+'><summary>Approved ('+done.length+')</summary><div class="inner">';
+      done.forEach(function(it){ html += cardHtml(it); });
+      html += '</div></details>';
+    }
+    app.innerHTML = html;
+    var box = document.getElementById("approved-box");
+    if(box) box.addEventListener("toggle", function(){ approvedOpen = box.open; });
     items.forEach(bind);
     summary();
+  }
+
+  function flash(msg){
+    var f = document.getElementById("flash");
+    f.innerHTML = msg ? '<div class="flash">'+esc(msg)+'</div>' : "";
   }
 
   function cardHtml(it){
@@ -149,8 +180,13 @@ footer{max-width:880px;margin:0 auto;padding:8px 16px 40px;color:var(--muted);fo
     var pending = {decision: it.decision || null};
     var btns = card.querySelectorAll(".choice"), ta = card.querySelector("textarea");
     var save = card.querySelector(".save"), clear = card.querySelector(".clear"), status = card.querySelector(".status");
+    if(unsaved[it.ref]){
+      pending.decision = unsaved[it.ref].decision; ta.value = unsaved[it.ref].comment;
+      btns.forEach(function(x){ x.classList.toggle("sel", x.getAttribute("data-choice") === pending.decision); });
+    }
     function dirty(){
       var changed = (pending.decision||null) !== (it.decision||null) || (ta.value||"") !== (it.comment||"");
+      if(changed) unsaved[it.ref] = {decision: pending.decision, comment: ta.value}; else delete unsaved[it.ref];
       var valid = pending.decision || ta.value.trim();
       save.disabled = !(changed && valid);
       if(changed){ status.className = "status"; status.textContent = "Unsaved changes"; }
@@ -170,12 +206,18 @@ footer{max-width:880px;margin:0 auto;padding:8px 16px 40px;color:var(--muted);fo
       dirty();
     });
     ta.addEventListener("input", dirty);
+    if(unsaved[it.ref]) dirty();
     save.addEventListener("click", function(){
       save.disabled = true; status.className = "status"; status.textContent = "Saving…";
       api("/api/save", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ref: it.ref, decision: pending.decision, comment: ta.value})})
         .then(function(j){
           it.decision = j.saved.decision; it.comment = j.saved.comment; it.saved_at = j.saved.saved_at; it.actioned_at = null; it.actioned_note = null;
-          var old = card; old.outerHTML = cardHtml(it); bind(it); summary();
+          delete unsaved[it.ref];
+          var wasIn = !!card.closest(".approved-box"), nowIn = isApproved(it);
+          if(wasIn !== nowIn){
+            render();
+            flash(nowIn ? it.ref+" saved and moved to Approved at the bottom of the page." : it.ref+" saved and moved back to the main list.");
+          } else { var old = card; old.outerHTML = cardHtml(it); bind(it); summary(); flash(""); }
         })
         .catch(function(e){ status.className = "status err"; status.textContent = "Not saved: " + e.message + ". Please try again."; save.disabled = false; });
     });
